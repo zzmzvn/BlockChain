@@ -1,0 +1,25 @@
+.container {
+    margin-top: 50px;
+}
+
+.option-input {
+    margin-bottom: 10px;
+}
+
+#success-alert {
+    display: none;
+}
+
+.vote-option {
+    margin-bottom: 15px;
+}
+
+#voting-form,
+#success-message {
+    display: none;
+}
+
+.timer {
+    font-size: 1.2em;
+    margin-bottom: 20px;
+} 

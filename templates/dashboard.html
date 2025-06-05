@@ -1,0 +1,658 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voting Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@{{ config.ui.bootstrap_version }}/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/boxicons@2.0.7/css/boxicons.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&family=Open+Sans:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: {{ config.ui.theme.primary_color }};
+            --secondary: {{ config.ui.theme.secondary_color }};
+            --success: {{ config.ui.theme.success_color }};
+            --danger: {{ config.ui.theme.danger_color }};
+            --warning: {{ config.ui.theme.warning_color }};
+            --info: {{ config.ui.theme.info_color }};
+            --light: {{ config.ui.theme.light_color }};
+            --dark: {{ config.ui.theme.dark_color }};
+            --background: {{ config.ui.theme.background_color }};
+            --text: {{ config.ui.theme.text_color }};
+            --border-radius: {{ config.ui.theme.border_radius }};
+            --box-shadow: {{ config.ui.theme.box_shadow }};
+            --transition: {{ config.ui.theme.transition }};
+        }
+
+        body {
+            font-family: 'Roboto', sans-serif;
+            background-color: var(--background);
+            color: var(--text);
+        }
+
+        .card {
+            border-radius: var(--border-radius);
+            box-shadow: var(--box-shadow);
+            transition: var(--transition);
+            margin-bottom: 1.5rem;
+            background-color: white;
+            border: none;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+        }
+
+        .nav-pills .nav-link.active {
+            background-color: var(--primary);
+        }
+
+        .nav-pills .nav-link {
+            color: var(--primary);
+            border-radius: var(--border-radius);
+            padding: 0.5rem 1rem;
+            margin-right: 0.5rem;
+        }
+
+        .progress {
+            height: 1.5rem;
+            border-radius: var(--border-radius);
+            background-color: var(--light);
+        }
+
+        .progress-bar {
+            background-color: var(--primary);
+        }
+
+        .poll-status {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            padding: 0.25rem 0.75rem;
+            border-radius: 2rem;
+            font-size: 0.875rem;
+            font-weight: 500;
+        }
+
+        .status-active {
+            background-color: var(--success);
+            color: white;
+        }
+
+        .status-ended {
+            background-color: var(--secondary);
+            color: white;
+        }
+
+        .poll-timer {
+            font-size: 0.875rem;
+            color: var(--secondary);
+            margin-bottom: 1rem;
+        }
+
+        .result-chart {
+            height: 300px;
+            margin: 2rem 0;
+        }
+
+        .voter-list {
+            max-height: 300px;
+            overflow-y: auto;
+            padding: 1rem;
+            background-color: var(--light);
+            border-radius: var(--border-radius);
+        }
+
+        .voter-item {
+            padding: 0.5rem;
+            border-bottom: 1px solid rgba(0,0,0,0.1);
+            background-color: white;
+            margin-bottom: 0.5rem;
+            border-radius: 0.25rem;
+        }
+
+        .voter-item:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+        }
+
+        .stats-card {
+            text-align: center;
+            padding: 1.5rem;
+        }
+
+        .stats-card i {
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+            color: var(--primary);
+        }
+
+        .stats-card h3 {
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+            color: var(--dark);
+        }
+
+        .stats-card p {
+            color: var(--secondary);
+            margin-bottom: 0;
+            font-size: 0.875rem;
+        }
+
+        .navbar {
+            margin-bottom: 2rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .navbar-brand {
+            font-weight: 500;
+            font-size: 1.25rem;
+        }
+
+        .nav-link {
+            font-weight: 500;
+        }
+
+        .modal-content {
+            border-radius: var(--border-radius);
+            border: none;
+        }
+
+        .modal-header {
+            border-bottom: 1px solid var(--light);
+            padding: 1.5rem;
+        }
+
+        .modal-body {
+            padding: 1.5rem;
+        }
+
+        .btn-primary {
+            background-color: var(--primary);
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: var(--border-radius);
+            font-weight: 500;
+        }
+
+        .btn-primary:hover {
+            background-color: var(--primary);
+            opacity: 0.9;
+        }
+
+        @media (max-width: 768px) {
+            .stats-card {
+                margin-bottom: 1rem;
+            }
+            
+            .card {
+                margin-bottom: 1rem;
+            }
+            
+            .modal-dialog {
+                margin: 0.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container">
+            <a class="navbar-brand" href="/">Voting System</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link active" href="/dashboard">Dashboard</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/">Create New Poll</a>
+                    </li>
+                </ul>
+                <div class="d-flex align-items-center text-white">
+                    <i class="bx bx-wallet me-2"></i>
+                    <span id="wallet-address">Connect Wallet</span>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container py-4">
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <div class="card stats-card">
+                    <i class="bx bx-poll"></i>
+                    <h3 id="total-polls">0</h3>
+                    <p>Total Polls</p>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card stats-card">
+                    <i class="bx bx-check-circle"></i>
+                    <h3 id="active-polls">0</h3>
+                    <p>Active Polls</p>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card stats-card">
+                    <i class="bx bx-user"></i>
+                    <h3 id="total-voters">0</h3>
+                    <p>Total Voters</p>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card stats-card">
+                    <i class="bx bx-time"></i>
+                    <h3 id="completed-polls">0</h3>
+                    <p>Completed Polls</p>
+                </div>
+            </div>
+        </div>
+
+        <ul class="nav nav-pills mb-4" id="pollTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" data-bs-toggle="pill" data-bs-target="#active">Active Polls</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" data-bs-toggle="pill" data-bs-target="#completed">Completed Polls</button>
+            </li>
+        </ul>
+
+        <div class="tab-content">
+            <div class="tab-pane fade show active" id="active">
+                <div class="row" id="active-polls-container">
+                    <!-- Active polls will be dynamically added here -->
+                </div>
+            </div>
+            <div class="tab-pane fade" id="completed">
+                <div class="row" id="completed-polls-container">
+                    <!-- Completed polls will be dynamically added here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Poll Details Modal -->
+    <div class="modal fade" id="pollDetailsModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Poll Details</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="poll-info mb-4">
+                        <h4 id="modal-poll-title"></h4>
+                        <div class="poll-timer" id="modal-poll-timer"></div>
+                        <div class="progress">
+                            <div class="progress-bar" role="progressbar" id="modal-poll-progress"></div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-8">
+                            <h5>Live Results</h5>
+                            <canvas id="resultsChart" class="result-chart"></canvas>
+                        </div>
+                        <div class="col-md-4">
+                            <h5>Recent Voters</h5>
+                            <div class="voter-list" id="modal-voter-list">
+                                <!-- Recent voters will be added here -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Compare Data Modal -->
+    <div class="modal fade" id="compareDataModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Data Comparison</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="comparison-loading" class="text-center py-4">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <p class="mt-2">Comparing data...</p>
+                    </div>
+                    
+                    <div id="comparison-error" class="alert alert-danger" style="display: none;">
+                        <p class="mb-0"></p>
+                    </div>
+                    
+                    <div id="comparison-content" style="display: none;">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h6 class="mb-0">Blockchain Data</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <h6>Title</h6>
+                                        <p id="blockchain-title"></p>
+                                        <h6>Vote Counts</h6>
+                                        <div id="blockchain-votes"></div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h6 class="mb-0">Database Data</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <h6>Title</h6>
+                                        <p id="sql-title"></p>
+                                        <h6>Vote Counts</h6>
+                                        <div id="sql-votes"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="mt-4">
+                            <h6>Comparison Results</h6>
+                            <div id="comparison-results"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@{{ config.ui.bootstrap_version }}/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/web3@{{ config.web3.version }}/dist/web3.min.js"></script>
+    <script>
+        let web3;
+        let accounts;
+        let pollsData = {};
+        let resultsChart;
+
+        async function connectWallet() {
+            if (typeof window.ethereum !== 'undefined') {
+                try {
+                    web3 = new Web3(window.ethereum);
+                    accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+                    document.getElementById('wallet-address').textContent = 
+                        accounts[0].substring(0, 6) + '...' + accounts[0].substring(38);
+                    loadDashboard();
+                } catch (error) {
+                    console.error('Error connecting wallet:', error);
+                }
+            } else {
+                alert('Please install MetaMask!');
+            }
+        }
+
+        async function loadDashboard() {
+            try {
+                const response = await fetch('/api/dashboard');
+                const data = await response.json();
+                
+                if (data.success) {
+                    updateStats(data.stats);
+                    renderPolls(data.active_polls, 'active-polls-container');
+                    renderPolls(data.completed_polls, 'completed-polls-container');
+                    pollsData = {
+                        ...data.active_polls.reduce((acc, poll) => ({ ...acc, [poll.id]: poll }), {}),
+                        ...data.completed_polls.reduce((acc, poll) => ({ ...acc, [poll.id]: poll }), {})
+                    };
+                }
+            } catch (error) {
+                console.error('Error loading dashboard:', error);
+            }
+        }
+
+        function updateStats(stats) {
+            document.getElementById('total-polls').textContent = stats.total_polls;
+            document.getElementById('active-polls').textContent = stats.active_polls;
+            document.getElementById('total-voters').textContent = stats.total_voters;
+            document.getElementById('completed-polls').textContent = stats.completed_polls;
+        }
+
+        function renderPolls(polls, containerId) {
+            const container = document.getElementById(containerId);
+            container.innerHTML = '';
+
+            polls.forEach(poll => {
+                const isActive = poll.status === 'active';
+                const hasEnded = new Date(poll.end_time) <= new Date();
+                
+                const card = document.createElement('div');
+                card.className = 'col-md-6 col-lg-4';
+                card.innerHTML = `
+                    <div class="card">
+                        <div class="card-body">
+                            <span class="poll-status ${isActive ? 'status-active' : 'status-ended'}">
+                                ${isActive ? (hasEnded ? 'Ending...' : 'Active') : 'Ended'}
+                            </span>
+                            <h5 class="card-title">${poll.title}</h5>
+                            <div class="poll-timer" data-poll-id="${poll.id}">
+                                ${formatTimeRemaining(poll.end_time)}
+                            </div>
+                            <div class="progress mb-3">
+                                <div class="progress-bar" role="progressbar" style="width: ${calculateProgress(poll.start_time, poll.end_time)}%"></div>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span>${poll.total_votes} votes</span>
+                                <div class="btn-group">
+                                    <button class="btn btn-primary btn-sm" onclick="showPollDetails(${poll.id})">
+                                        View Details
+                                    </button>
+                                    ${!isActive ? `
+                                        <button class="btn btn-info btn-sm" onclick="compareData(${poll.id})">
+                                            <i class="bx bx-analyse"></i> Compare Data
+                                        </button>
+                                        <button class="btn btn-success btn-sm" onclick="exportResults(${poll.id})">
+                                            <i class="bx bx-download"></i> Export
+                                        </button>
+                                    ` : ''}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        function calculateProgress(startTime, endTime) {
+            const now = Date.now();
+            const start = new Date(startTime).getTime();
+            const end = new Date(endTime).getTime();
+            const progress = ((now - start) / (end - start)) * 100;
+            return Math.min(Math.max(progress, 0), 100);
+        }
+
+        function formatTimeRemaining(endTime) {
+            const now = Date.now();
+            const end = new Date(endTime).getTime();
+            const diff = end - now;
+
+            if (diff <= 0) return 'Ended';
+
+            const hours = Math.floor(diff / (1000 * 60 * 60));
+            const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+            return `${hours}h ${minutes}m remaining`;
+        }
+
+        async function showPollDetails(pollId) {
+            try {
+                const response = await fetch(`/api/poll/${pollId}/details`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    const poll = data.poll;
+                    document.getElementById('modal-poll-title').textContent = poll.title;
+                    document.getElementById('modal-poll-timer').textContent = formatTimeRemaining(poll.end_time);
+                    document.getElementById('modal-poll-progress').style.width = 
+                        calculateProgress(poll.start_time, poll.end_time) + '%';
+
+                    renderVoterList(data.recent_voters);
+                    updateResultsChart(data.results);
+
+                    new bootstrap.Modal(document.getElementById('pollDetailsModal')).show();
+                }
+            } catch (error) {
+                console.error('Error loading poll details:', error);
+            }
+        }
+
+        function renderVoterList(voters) {
+            const container = document.getElementById('modal-voter-list');
+            container.innerHTML = voters.map(voter => `
+                <div class="voter-item">
+                    <div class="d-flex justify-content-between">
+                        <span>${voter.voter_name}</span>
+                        <small class="text-muted">${new Date(voter.timestamp).toLocaleTimeString()}</small>
+                    </div>
+                    <small class="text-muted">${voter.voter_address.substring(0, 6)}...${voter.voter_address.substring(38)}</small>
+                </div>
+            `).join('');
+        }
+
+        function updateResultsChart(results) {
+            const ctx = document.getElementById('resultsChart').getContext('2d');
+            
+            if (resultsChart) {
+                resultsChart.destroy();
+            }
+
+            resultsChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: results.map(r => r.option_text),
+                    datasets: [{
+                        label: 'Votes',
+                        data: results.map(r => r.votes),
+                        backgroundColor: 'rgba(13, 110, 253, 0.5)',
+                        borderColor: 'rgb(13, 110, 253)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                stepSize: 1
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Update timers every minute
+        setInterval(() => {
+            document.querySelectorAll('.poll-timer').forEach(timer => {
+                const pollId = timer.dataset.pollId;
+                const poll = pollsData[pollId];
+                if (poll) {
+                    timer.textContent = formatTimeRemaining(poll.end_time);
+                }
+            });
+        }, 60000);
+
+        async function compareData(pollId) {
+            try {
+                // Show loading spinner
+                document.getElementById('comparison-loading').style.display = 'block';
+                document.getElementById('comparison-content').style.display = 'none';
+                document.getElementById('comparison-error').style.display = 'none';
+
+                // Fetch comparison data
+                const response = await fetch(`/api/compare_results/${pollId}`);
+                const data = await response.json();
+
+                if (data.success) {
+                    // Populate blockchain data
+                    document.getElementById('blockchain-title').textContent = data.comparison.blockchain_data.title;
+                    document.getElementById('blockchain-votes').innerHTML = Object.entries(data.comparison.blockchain_data.votes)
+                        .map(([option, count]) => `<p>${option}: ${count}</p>`).join('');
+
+                    // Populate SQL data
+                    document.getElementById('sql-title').textContent = data.comparison.sql_data.title;
+                    document.getElementById('sql-votes').innerHTML = Object.entries(data.comparison.sql_data.votes)
+                        .map(([option, count]) => `<p>${option}: ${count}</p>`).join('');
+
+                    // Populate comparison results
+                    document.getElementById('comparison-results').innerHTML = data.comparison.discrepancies.length > 0
+                        ? data.comparison.discrepancies.map(d => `<p>${d.type}: ${d.option || ''} (Blockchain: ${d.blockchain_count || d.blockchain_value}, SQL: ${d.sql_count || d.sql_value})</p>`).join('')
+                        : '<p>All data matches!</p>';
+
+                    // Show comparison content
+                    document.getElementById('comparison-loading').style.display = 'none';
+                    document.getElementById('comparison-content').style.display = 'block';
+                } else {
+                    throw new Error(data.error);
+                }
+            } catch (error) {
+                console.error('Error comparing data:', error);
+                document.getElementById('comparison-error').style.display = 'block';
+                document.getElementById('comparison-error').querySelector('p').textContent = error.message;
+                document.getElementById('comparison-loading').style.display = 'none';
+            }
+        }
+
+        // Add event listeners to compare buttons
+        document.querySelectorAll('.compare-btn').forEach(button => {
+            button.addEventListener('click', () => {
+                const pollId = button.getAttribute('data-poll-id');
+                compareData(pollId);
+                const compareModal = new bootstrap.Modal(document.getElementById('compareDataModal'));
+                compareModal.show();
+            });
+        });
+
+        async function exportResults(pollId) {
+            try {
+                const response = await fetch(`/api/poll/${pollId}/export?format=csv`);
+                if (!response.ok) {
+                    throw new Error('Failed to export results');
+                }
+                
+                // Create a blob from the response
+                const blob = await response.blob();
+                
+                // Create a temporary link and trigger download
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = response.headers.get('Content-Disposition').split('filename=')[1];
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                a.remove();
+                
+                showToast('Results exported successfully!');
+            } catch (error) {
+                showToast(error.message, 'error');
+            }
+        }
+
+        function showToast(message, type = 'success') {
+            Toastify({
+                text: message,
+                duration: 3000,
+                gravity: "top",
+                position: "right",
+                backgroundColor: type === 'success' ? '#198754' : '#dc3545',
+                stopOnFocus: true
+            }).showToast();
+        }
+
+        // Connect wallet on page load
+        connectWallet();
+    </script>
+</body>
+</html> 

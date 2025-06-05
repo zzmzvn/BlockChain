@@ -1,0 +1,83 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+contract BieuQuyet {
+    struct VoteOption {
+        string name;
+        uint count;
+    }
+
+    string public title;
+    VoteOption[] public options;
+    mapping(address => bool) public hasVoted;
+
+    uint public startTime;
+    uint public endTime;
+    address public owner;
+
+    constructor() {
+        owner = msg.sender;
+    }
+
+    modifier onlyOwner() {
+        require(msg.sender == owner, "Chi chu so huu moi co quyen");
+        _;
+    }
+
+    modifier inVotingTime() {
+        require(block.timestamp >= startTime && block.timestamp <= endTime, "Khong trong thoi gian bieu quyet");
+        _;
+    }
+
+    function createVoting(string memory _title, string[] memory _optionNames, uint _startTime, uint _endTime) public onlyOwner {
+        require(_startTime < _endTime, "Thoi gian bat dau phai nho hon ket thuc");
+
+        // Reset previous vote
+        delete options;
+        for (uint i = 0; i < _optionNames.length; i++) {
+            options.push(VoteOption({
+                name: _optionNames[i],
+                count: 0
+            }));
+        }
+
+        title = _title;
+        startTime = _startTime;
+        endTime = _endTime;
+
+        // Reset voting status
+        for (uint i = 0; i < voters.length; i++) {
+            hasVoted[voters[i]] = false;
+        }
+        delete voters;
+    }
+
+    address[] public voters;
+
+    function vote(uint optionIndex) public inVotingTime {
+        require(!hasVoted[msg.sender], "Ban da bieu quyet roi");
+        require(optionIndex < options.length, "Lua chon khong hop le");
+
+        options[optionIndex].count++;
+        hasVoted[msg.sender] = true;
+        voters.push(msg.sender);
+    }
+
+    function getOptions() public view returns (VoteOption[] memory) {
+        return options;
+    }
+
+    function getResult() public view returns (string memory _title, string[] memory names, uint[] memory counts) {
+        names = new string[](options.length);
+        counts = new uint[](options.length);
+        for (uint i = 0; i < options.length; i++) {
+            names[i] = options[i].name;
+            counts[i] = options[i].count;
+        }
+        return (title, names, counts);
+    }
+
+    function getCurrentTime() public view returns (uint) {
+        return block.timestamp;
+    }
+}

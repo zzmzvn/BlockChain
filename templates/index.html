@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voting Admin Panel</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@{{ config.ui.bootstrap_version }}/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/web3@{{ config.web3.version }}/dist/web3.min.js"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
+    <style>
+        .loading {
+            position: relative;
+            pointer-events: none;
+            opacity: 0.6;
+        }
+        
+        .loading::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 1.5rem;
+            height: 1.5rem;
+            margin: -0.75rem;
+            border: 2px solid #fff;
+            border-top-color: transparent;
+            border-radius: 50%;
+            animation: spinner .6s linear infinite;
+        }
+        
+        @keyframes spinner {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+        
+        .btn.loading {
+            padding-right: 2.5rem;
+        }
+    </style>
+    <script>
+        // Inject dynamic styles
+        document.addEventListener('DOMContentLoaded', function() {
+            const style = document.createElement('style');
+            style.textContent = `
+                .container { max-width: {{ config.ui.container_max_width }}px; }
+                .btn-primary { background-color: {{ config.ui.theme.primary_color }}; }
+                .btn-secondary { background-color: {{ config.ui.theme.secondary_color }}; }
+                .btn-danger { background-color: {{ config.ui.theme.danger_color }}; }
+            `;
+            document.head.appendChild(style);
+        });
+    </script>
+</head>
+<body>
+    <div class="container">
+        <h1 class="mb-4">Create New Vote</h1>
+        
+        <div class="alert alert-success" id="success-alert" style="display: none;">
+            <h4>Vote Created Successfully!</h4>
+            <p>Share this link with participants:</p>
+            <input type="text" class="form-control mb-2" id="vote-link" readonly>
+            <button class="btn btn-sm btn-secondary" onclick="copyLink()">Copy Link</button>
+        </div>
+
+        <div class="alert alert-danger" id="error-alert" style="display: none;">
+            <h4>Error</h4>
+            <p id="error-message"></p>
+        </div>
+
+        <div class="card">
+            <div class="card-body">
+                <form id="create-vote-form">
+                    <div class="mb-3">
+                        <label class="form-label">Title</label>
+                        <input type="text" class="form-control" id="title" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Options</label>
+                        <div id="options-container">
+                            <div class="option-input">
+                                <input type="text" class="form-control" name="options[]" required>
+                            </div>
+                        </div>
+                        <button type="button" class="btn btn-secondary mt-2" onclick="addOption()">Add Option</button>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Start Time</label>
+                            <input type="datetime-local" class="form-control" id="start-time" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">End Time</label>
+                            <input type="datetime-local" class="form-control" id="end-time" required>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary" id="submit-btn">Create Vote</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let web3;
+        let accounts;
+
+        async function checkNetwork() {
+            if (!window.ethereum) {
+                throw new Error('MetaMask is not installed. Please install MetaMask to use this application.');
+            }
+
+            try {
+                // Check if we can connect to MetaMask
+                const accounts = await window.ethereum.request({ method: 'eth_accounts' });
+                if (accounts.length === 0) {
+                    throw new Error('Please connect to MetaMask.');
+                }
+
+                // Check network
+                const chainId = await window.ethereum.request({ method: 'eth_chainId' });
+                const ganacheChainId = '0x539'; // Chain ID for Ganache
+
+                if (chainId !== ganacheChainId) {
+                    // Try to switch to Ganache network
+                    try {
+                        await window.ethereum.request({
+                            method: 'wallet_switchEthereumChain',
+                            params: [{ chainId: ganacheChainId }],
+                        });
+                    } catch (switchError) {
+                        // If network doesn't exist, add it
+                        if (switchError.code === 4902) {
+                            try {
+                                await window.ethereum.request({
+                                    method: 'wallet_addEthereumChain',
+                                    params: [
+                                        {
+                                            chainId: ganacheChainId,
+                                            chainName: 'Ganache Local',
+                                            nativeCurrency: {
+                                                name: 'ETH',
+                                                symbol: 'ETH',
+                                                decimals: 18
+                                            },
+                                            rpcUrls: ['http://127.0.0.1:7545']
+                                        },
+                                    ],
+                                });
+                            } catch (addError) {
+                                throw new Error('Failed to add Ganache network to MetaMask');
+                            }
+                        } else {
+                            throw new Error('Please switch to Ganache network in MetaMask');
+                        }
+                    }
+                }
+            } catch (error) {
+                throw new Error(`MetaMask error: ${error.message}`);
+            }
+        }
+
+        async function connectWallet() {
+            try {
+                await checkNetwork();
+                
+                web3 = new Web3(window.ethereum);
+                accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+                
+                // Register wallet with backend
+                const response = await fetch('/api/auth/connect', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        wallet_address: accounts[0]
+                    })
+                });
+                
+                const data = await response.json();
+                if (!data.success) {
+                    throw new Error(data.error || 'Failed to connect wallet');
+                }
+                
+                return true;
+            } catch (error) {
+                let errorMessage = 'Failed to connect wallet';
+                
+                if (error.code === 4001) {
+                    errorMessage = 'You rejected the connection request';
+                } else if (error.code === -32002) {
+                    errorMessage = 'MetaMask is already processing a connection request';
+                } else if (error.message) {
+                    errorMessage = error.message;
+                }
+                
+                showError(errorMessage);
+                return false;
+            }
+        }
+
+        function showError(message) {
+            const errorAlert = document.getElementById('error-alert');
+            const errorMessage = document.getElementById('error-message');
+            errorMessage.textContent = message;
+            errorAlert.style.display = 'block';
+            
+            // Auto hide after 5 seconds
+            setTimeout(() => {
+                errorAlert.style.display = 'none';
+            }, 5000);
+        }
+
+        function showSuccess(message) {
+            const successAlert = document.getElementById('success-alert');
+            successAlert.querySelector('h4').textContent = message;
+            successAlert.style.display = 'block';
+            
+            // Auto hide after 5 seconds
+            setTimeout(() => {
+                successAlert.style.display = 'none';
+            }, 5000);
+        }
+
+        // Listen for network changes
+        if (window.ethereum) {
+            window.ethereum.on('chainChanged', () => {
+                window.location.reload();
+            });
+            
+            window.ethereum.on('accountsChanged', () => {
+                window.location.reload();
+            });
+        }
+
+        function addOption() {
+            const container = document.getElementById('options-container');
+            const newOption = document.createElement('div');
+            newOption.className = 'option-input';
+            newOption.innerHTML = `
+                <div class="input-group mb-2">
+                    <input type="text" class="form-control" name="options[]" required>
+                    <button type="button" class="btn btn-danger" onclick="this.parentElement.remove()">Remove</button>
+                </div>
+            `;
+            container.appendChild(newOption);
+        }
+
+        function toUnixTimestamp(dateStr) {
+            return Math.floor(new Date(dateStr).getTime() / 1000);
+        }
+
+        function showToast(message, type = 'success') {
+            Toastify({
+                text: message,
+                duration: 3000,
+                gravity: "top",
+                position: "right",
+                backgroundColor: type === 'success' ? '#198754' : '#dc3545',
+                stopOnFocus: true
+            }).showToast();
+        }
+
+        function setLoading(element, isLoading) {
+            if (isLoading) {
+                element.classList.add('loading');
+                element.disabled = true;
+            } else {
+                element.classList.remove('loading');
+                element.disabled = false;
+            }
+        }
+
+        async function createVote(event) {
+            event.preventDefault();
+            
+            const submitBtn = document.getElementById('submit-btn');
+            setLoading(submitBtn, true);
+            
+            try {
+                if (!await connectWallet()) {
+                    return;
+                }
+
+                const title = document.getElementById('title').value;
+                const options = Array.from(document.getElementsByName('options[]')).map(input => input.value);
+                const startTime = toUnixTimestamp(document.getElementById('start-time').value);
+                const endTime = toUnixTimestamp(document.getElementById('end-time').value);
+
+                if (startTime >= endTime) {
+                    throw new Error('Start time must be before end time');
+                }
+
+                if (options.length < 2) {
+                    throw new Error('At least 2 options are required');
+                }
+
+                if (options.some(opt => !opt.trim())) {
+                    throw new Error('All options must have a value');
+                }
+
+                const data = {
+                    title: title,
+                    options: options,
+                    start_time: startTime,
+                    end_time: endTime,
+                    creator_address: accounts[0]
+                };
+
+                const response = await fetch('/create_vote', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(data)
+                });
+
+                const result = await response.json();
+                if (result.success) {
+                    const voteLink = `${window.location.origin}/vote/${result.poll_id}`;
+                    document.getElementById('vote-link').value = voteLink;
+                    document.getElementById('success-alert').style.display = 'block';
+                    document.getElementById('error-alert').style.display = 'none';
+                    document.getElementById('create-vote-form').reset();
+                    
+                    // Copy link automatically
+                    const linkInput = document.getElementById('vote-link');
+                    linkInput.select();
+                    document.execCommand('copy');
+                    
+                    // Show alert that link was copied
+                    alert('Link has been copied to clipboard! Redirecting to dashboard...');
+                    
+                    // Redirect to dashboard after a short delay
+                    setTimeout(() => {
+                        window.location.href = '/dashboard';
+                    }, 1500);
+                } else {
+                    throw new Error(result.error || 'Failed to create vote');
+                }
+            } catch (error) {
+                console.error('Error creating vote:', error);
+                document.getElementById('error-message').textContent = error.message;
+                document.getElementById('error-alert').style.display = 'block';
+                document.getElementById('success-alert').style.display = 'none';
+            } finally {
+                setLoading(submitBtn, false);
+            }
+        }
+
+        function copyLink() {
+            const linkInput = document.getElementById('vote-link');
+            linkInput.select();
+            document.execCommand('copy');
+            alert('Link copied to clipboard!');
+        }
+
+        document.getElementById('create-vote-form').addEventListener('submit', createVote);
+
+        // Add initial options
+        addOption();
+        addOption();
+    </script>
+</body>
+</html> 
